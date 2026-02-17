@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 15px;
+    }
+
+    .status {
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+
+    .active {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .input-group {
+      margin: 10px 0;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #007bff;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <h3>Frontend Monitor</h3>
+
+  <div class="status active" id="status">
+    ✅ Активен
+  </div>
+
+  <div class="input-group">
+    <label>Ключ проекта:</label>
+    <input type="text" id="apiKey" placeholder="Введите API ключ">
+  </div>
+
+  <div class="input-group">
+    <label>Отслеживать:</label><br>
+    <label><input type="checkbox" id="errors" checked> Ошибки</label><br>
+    <label><input type="checkbox" id="performance" checked> Производительность</label><br>
+    <label><input type="checkbox" id="network" checked> Сеть</label>
+  </div>
+
+  <button id="save">Сохранить настройки</button>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
