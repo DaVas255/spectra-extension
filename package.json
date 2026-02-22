@@ -1,0 +1,27 @@
+{
+	"name": "spectra-extension",
+	"version": "2.0.0",
+	"description": "Real-time error tracking for web applications",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "rollup -c",
+		"build:watch": "rollup -c -w",
+		"clean": "rimraf dist"
+	},
+	"devDependencies": {
+		"@rollup/plugin-commonjs": "^25.0.0",
+		"@rollup/plugin-node-resolve": "^15.0.0",
+		"@rollup/plugin-typescript": "^11.0.0",
+		"@types/chrome": "^0.1.36",
+		"rimraf": "^5.0.0",
+		"rollup": "^4.0.0",
+		"rollup-plugin-copy": "^3.5.0",
+		"typescript": "^5.3.0"
+	},
+	"dependencies": {
+		"prettier": "^3.8.1",
+		"socket.io-client": "^4.7.0",
+		"tslib": "^2.8.1"
+	}
+}
