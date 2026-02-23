@@ -4,11 +4,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="popup.css">
+  <title>Spectra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0a0b0f;
+      --surface: #111318;
+      --surface2: #1a1d26;
+      --border: #1f2330;
+      --accent: #6c63ff;
+      --accent2: #ff4455;
+      --accent3: #00d4aa;
+      --accent4: #ffb800;
+      --text: #e8eaf0;
+      --muted: #5a6080;
+      --mono: 'JetBrains Mono', monospace;
+      --display: 'Syne', sans-serif;
+    }
+
+    body {
+      width: 420px;
+      min-height: 560px;
+      max-height: 640px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
 </head>
 
 <body>
-
   <script src="popup.js"></script>
 </body>
 
