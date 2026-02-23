@@ -3,12 +3,8 @@
 	"name": "Spectra Monitor",
 	"version": "2.0.0",
 	"description": "Real-time error tracking for web applications",
-	"permissions": ["storage", "activeTab", "scripting"],
-	"host_permissions": [
-		"http://localhost:4200/api*",
-		"https://*/*",
-		"http://*/*"
-	],
+	"permissions": ["storage", "activeTab"],
+	"host_permissions": ["https://*/*", "http://*/*"],
 	"background": {
 		"service_worker": "background.js",
 		"type": "module"
@@ -18,6 +14,12 @@
 			"matches": ["<all_urls>"],
 			"js": ["content.js"],
 			"run_at": "document_start"
+		}
+	],
+	"web_accessible_resources": [
+		{
+			"resources": ["injected.js"],
+			"matches": ["<all_urls>"]
 		}
 	],
 	"action": {
