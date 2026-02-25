@@ -45,10 +45,341 @@
       display: flex;
       flex-direction: column;
     }
+
+    .header {
+      padding: 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-family: var(--display);
+      font-weight: 800;
+      font-size: 18px;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent3);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.disabled {
+      background: var(--muted);
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .stat-label {
+      font-size: 9px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: var(--display);
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .stat-value.error { color: var(--accent2); }
+    .stat-value.perf { color: var(--accent3); }
+    .stat-value.network { color: var(--accent4); }
+    .stat-value.paint { color: var(--accent); }
+
+    .section {
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .event-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .event-item {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .event-item:last-child {
+      border-bottom: none;
+    }
+
+    .event-icon {
+      font-size: 12px;
+      margin-top: 1px;
+    }
+
+    .event-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .event-message {
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .event-meta {
+      font-size: 9px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+    }
+
+    .controls {
+      padding: 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5a52d5;
+    }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toggle-row:last-child {
+      border-bottom: none;
+    }
+
+    .toggle-label {
+      font-size: 10px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 20px;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 2px;
+      bottom: 2px;
+      background: var(--muted);
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+      background: white;
+    }
+
+    .settings-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
   </style>
 </head>
 
 <body>
+  <div class="header">
+    <div class="logo">SPECTRA</div>
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Active</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Errors</div>
+        <div class="stat-value error" id="errorCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Performance</div>
+        <div class="stat-value perf" id="perfCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Network</div>
+        <div class="stat-value network" id="networkCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Paint</div>
+        <div class="stat-value paint" id="paintCount">0</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Settings</div>
+      <div class="settings-panel">
+        <div class="toggle-row">
+          <span class="toggle-label">Error Tracking</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggleErrors" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Performance Tracking</span>
+          <label class="toggle">
+            <input type="checkbox" id="togglePerf" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Network Tracking</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggleNetwork" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Recent Events</div>
+      <div class="event-list" id="eventList">
+        <div class="empty-state">No events yet</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-secondary" id="clearBtn">Clear</button>
+    <button class="btn btn-primary" id="dashboardBtn">Dashboard</button>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 

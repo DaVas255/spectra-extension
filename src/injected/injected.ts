@@ -27,8 +27,6 @@ interface NetworkData {
 }
 
 class DataCollector {
-  private buffer: Array<ErrorData | PerformanceData | NetworkData> = []
-
   constructor() {
     this.initErrorTracking()
     this.initPerformanceTracking()
@@ -36,9 +34,8 @@ class DataCollector {
     console.log('[Spectra] Data collector initialized')
   }
 
-  private log(data: ErrorData | PerformanceData | NetworkData) {
-    this.buffer.push(data)
-    console.log('[Spectra]', data)
+  private sendToContent(data: ErrorData | PerformanceData | NetworkData) {
+    window.postMessage({ type: 'SPECTRA_DATA', payload: data }, '*')
   }
 
   private initErrorTracking() {
@@ -52,7 +49,8 @@ class DataCollector {
         stack: error?.stack,
         timestamp: Date.now()
       }
-      this.log(errorData)
+      this.sendToContent(errorData)
+      console.log('[Spectra]', errorData)
       return false
     }
 
@@ -63,7 +61,8 @@ class DataCollector {
         stack: event.reason?.stack,
         timestamp: Date.now()
       }
-      this.log(errorData)
+      this.sendToContent(errorData)
+      console.log('[Spectra]', errorData)
       event.preventDefault()
     })
   }
@@ -83,7 +82,8 @@ class DataCollector {
           timestamp: Date.now(),
           details: this.extractPerformanceDetails(entry)
         }
-        this.log(perfData)
+        this.sendToContent(perfData)
+        console.log('[Spectra]', perfData)
       }
     })
 
@@ -108,14 +108,15 @@ class DataCollector {
             decodedBodySize: nav.decodedBodySize
           }
         }
-        this.log(navData)
+        this.sendToContent(navData)
+        console.log('[Spectra]', navData)
       }
     })
   }
 
   private extractPerformanceDetails(entry: PerformanceEntry): Record<string, unknown> {
     const details: Record<string, unknown> = {}
-    
+
     if (entry.entryType === 'resource') {
       const resource = entry as PerformanceResourceTiming
       details.initiatorType = resource.initiatorType
@@ -125,7 +126,7 @@ class DataCollector {
       details.duration = resource.duration
       details.responseEnd = resource.responseEnd
     }
-    
+
     if (entry.entryType === 'paint') {
       const paint = entry as PerformancePaintTiming
       details.renderTime = paint.startTime
@@ -148,17 +149,14 @@ class DataCollector {
               transferSize: resource.transferSize,
               timestamp: Date.now()
             }
-            this.log(networkData)
+            this.sendToContent(networkData)
+            console.log('[Spectra]', networkData)
           }
         }
       }
     })
 
     observer.observe({ entryTypes: ['resource'] })
-  }
-
-  getBuffer() {
-    return this.buffer
   }
 }
 
