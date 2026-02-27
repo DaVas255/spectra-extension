@@ -3,7 +3,7 @@
 	"name": "Spectra Monitor",
 	"version": "2.0.0",
 	"description": "Real-time error tracking for web applications",
-	"permissions": ["storage", "activeTab"],
+	"permissions": ["storage", "activeTab", "alarms", "scripting"],
 	"host_permissions": ["https://*/*", "http://*/*"],
 	"background": {
 		"service_worker": "background.js",

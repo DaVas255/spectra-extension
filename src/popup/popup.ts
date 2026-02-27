@@ -3,6 +3,9 @@ interface Stats {
   performance: number
   network: number
   paint: number
+  scroll: number
+  clicks: number
+  webVitals: number
 }
 
 interface EventItem {
@@ -12,6 +15,12 @@ interface EventItem {
   details?: Record<string, unknown>
 }
 
+interface WebVitals {
+  lcp: number | null
+  cls: number | null
+  inp: number | null
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const statusDot = document.getElementById('statusDot') as HTMLElement
   const statusText = document.getElementById('statusText') as HTMLElement
@@ -19,15 +28,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   const perfCount = document.getElementById('perfCount') as HTMLElement
   const networkCount = document.getElementById('networkCount') as HTMLElement
   const paintCount = document.getElementById('paintCount') as HTMLElement
+  const scrollCount = document.getElementById('scrollCount') as HTMLElement
+  const clickCount = document.getElementById('clickCount') as HTMLElement
+  const vitalsCount = document.getElementById('vitalsCount') as HTMLElement
   const eventList = document.getElementById('eventList') as HTMLElement
   const clearBtn = document.getElementById('clearBtn') as HTMLButtonElement
   const dashboardBtn = document.getElementById('dashboardBtn') as HTMLButtonElement
   const toggleErrors = document.getElementById('toggleErrors') as HTMLInputElement
   const togglePerf = document.getElementById('togglePerf') as HTMLInputElement
   const toggleNetwork = document.getElementById('toggleNetwork') as HTMLInputElement
+  const lcpValue = document.getElementById('lcpValue') as HTMLElement
+  const clsValue = document.getElementById('clsValue') as HTMLElement
+  const inpValue = document.getElementById('inpValue') as HTMLElement
 
-  let stats: Stats = { errors: 0, performance: 0, network: 0, paint: 0 }
+  let stats: Stats = {
+    errors: 0,
+    performance: 0,
+    network: 0,
+    paint: 0,
+    scroll: 0,
+    clicks: 0,
+    webVitals: 0
+  }
   let events: EventItem[] = []
+  let webVitals: WebVitals = { lcp: null, cls: null, inp: null }
   let isEnabled = true
 
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -55,6 +79,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     perfCount.textContent = String(stats.performance)
     networkCount.textContent = String(stats.network)
     paintCount.textContent = String(stats.paint)
+    scrollCount.textContent = String(stats.scroll)
+    clickCount.textContent = String(stats.clicks)
+    vitalsCount.textContent = String(stats.webVitals)
+  }
+
+  function updateWebVitals(vitals: WebVitals) {
+    webVitals = vitals
+    lcpValue.textContent = vitals.lcp !== null ? `${vitals.lcp}ms` : '-'
+    clsValue.textContent = vitals.cls !== null ? vitals.cls.toFixed(4) : '-'
+    inpValue.textContent = vitals.inp !== null ? `${vitals.inp}ms` : '-'
+
+    lcpValue.className = 'webvitals-value ' + getLcpClass(vitals.lcp)
+    clsValue.className = 'webvitals-value ' + getClsClass(vitals.cls)
+    inpValue.className = 'webvitals-value ' + getInpClass(vitals.inp)
+  }
+
+  function getLcpClass(value: number | null): string {
+    if (value === null) return ''
+    if (value <= 2500) return 'good'
+    if (value <= 4000) return 'needs-improvement'
+    return 'poor'
+  }
+
+  function getClsClass(value: number | null): string {
+    if (value === null) return ''
+    if (value <= 0.1) return 'good'
+    if (value <= 0.25) return 'needs-improvement'
+    return 'poor'
+  }
+
+  function getInpClass(value: number | null): string {
+    if (value === null) return ''
+    if (value <= 200) return 'good'
+    if (value <= 500) return 'needs-improvement'
+    return 'poor'
   }
 
   function renderEvents() {
@@ -90,10 +149,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         return '⚠️'
       case 'navigation':
       case 'resource':
-      case 'paint':
-        return '📊'
-      default:
         return '🌐'
+      case 'paint':
+        return '🎨'
+      case 'scroll-depth':
+        return '📜'
+      case 'click':
+        return '🖱️'
+      case 'lcp':
+        return '🖼️'
+      case 'cls':
+        return '📐'
+      case 'inp':
+        return '⚡'
+      case 'measure':
+        return '📏'
+      default:
+        return '📊'
     }
   }
 
@@ -109,11 +181,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function loadSettings() {
     const result = await chrome.storage.local.get(['spectra_settings'])
-    const settings = (result.spectra_settings as { errors: boolean; performance: boolean; network: boolean } | undefined) || {
-      errors: true,
-      performance: true,
-      network: true
-    }
+    const settings =
+      (result.spectra_settings as { errors: boolean; performance: boolean; network: boolean } | undefined) ||
+      {
+        errors: true,
+        performance: true,
+        network: true
+      }
 
     toggleErrors.checked = settings.errors
     togglePerf.checked = settings.performance
@@ -130,6 +204,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     })
   }
 
+  function extractWebVitalsFromEvents(eventsList: EventItem[]): WebVitals {
+    const vitals: WebVitals = { lcp: null, cls: null, inp: null }
+
+    for (const event of eventsList) {
+      if (event.type === 'lcp' && event.details?.value) {
+        vitals.lcp = event.details.value as number
+      }
+      if (event.type === 'cls' && event.details?.value) {
+        vitals.cls = event.details.value as number
+      }
+      if (event.type === 'inp' && event.details?.value) {
+        vitals.inp = event.details.value as number
+      }
+    }
+
+    return vitals
+  }
+
   async function requestData() {
     try {
       const response = await chrome.tabs.sendMessage(currentTab.id!, {
@@ -139,6 +231,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateStats(response.stats)
         events = response.events || []
         renderEvents()
+
+        const vitals = extractWebVitalsFromEvents(events)
+        updateWebVitals(vitals)
       }
     } catch {
       setStatus(false)
@@ -147,8 +242,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   clearBtn.addEventListener('click', async () => {
     await chrome.tabs.sendMessage(currentTab.id!, { type: 'CLEAR_STATS' })
-    updateStats({ errors: 0, performance: 0, network: 0, paint: 0 })
+    updateStats({
+      errors: 0,
+      performance: 0,
+      network: 0,
+      paint: 0,
+      scroll: 0,
+      clicks: 0,
+      webVitals: 0
+    })
     events = []
+    webVitals = { lcp: null, cls: null, inp: null }
+    updateWebVitals(webVitals)
     renderEvents()
   })
 

@@ -27,6 +27,8 @@
       --accent2: #ff4455;
       --accent3: #00d4aa;
       --accent4: #ffb800;
+      --accent5: #ff6b6b;
+      --accent6: #4ecdc4;
       --text: #e8eaf0;
       --muted: #5a6080;
       --mono: 'JetBrains Mono', monospace;
@@ -128,6 +130,9 @@
     .stat-value.perf { color: var(--accent3); }
     .stat-value.network { color: var(--accent4); }
     .stat-value.paint { color: var(--accent); }
+    .stat-value.scroll { color: var(--accent5); }
+    .stat-value.clicks { color: var(--accent6); }
+    .stat-value.vitals { color: #a855f7; }
 
     .section {
       margin-bottom: 16px;
@@ -308,6 +313,33 @@
       padding: 12px;
       margin-bottom: 16px;
     }
+
+    .webvitals-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .webvitals-row:last-child {
+      border-bottom: none;
+    }
+
+    .webvitals-label {
+      font-size: 10px;
+      color: var(--text);
+    }
+
+    .webvitals-value {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .webvitals-value.good { color: var(--accent3); }
+    .webvitals-value.needs-improvement { color: var(--accent4); }
+    .webvitals-value.poor { color: var(--accent2); }
   </style>
 </head>
 
@@ -337,6 +369,36 @@
       <div class="stat-card">
         <div class="stat-label">Paint</div>
         <div class="stat-value paint" id="paintCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Scroll</div>
+        <div class="stat-value scroll" id="scrollCount">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Clicks</div>
+        <div class="stat-value clicks" id="clickCount">0</div>
+      </div>
+      <div class="stat-card" style="grid-column: span 2;">
+        <div class="stat-label">Web Vitals</div>
+        <div class="stat-value vitals" id="vitalsCount">0</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Web Vitals</div>
+      <div class="settings-panel">
+        <div class="webvitals-row">
+          <span class="webvitals-label">LCP (Largest Contentful Paint)</span>
+          <span class="webvitals-value" id="lcpValue">-</span>
+        </div>
+        <div class="webvitals-row">
+          <span class="webvitals-label">CLS (Cumulative Layout Shift)</span>
+          <span class="webvitals-value" id="clsValue">-</span>
+        </div>
+        <div class="webvitals-row">
+          <span class="webvitals-label">INP (Interaction to Next Paint)</span>
+          <span class="webvitals-value" id="inpValue">-</span>
+        </div>
       </div>
     </div>
 
