@@ -1,163 +1,45 @@
-interface ErrorData {
-  type: 'error' | 'unhandledrejection'
-  message: string
-  source?: string
-  lineno?: number
-  colno?: number
-  stack?: string
-  timestamp: number
+console.log('[Spectra] Injected script loaded')
+
+const monitorDOM = () => {
+	console.log('[Spectra] DOM ready on ', window.location.href)
+
+	const iframes = document.querySelectorAll('iframe')
+	if (iframes.length > 0) {
+		console.log('[Spectra] Found ', iframes.length, 'iframes')
+	}
 }
 
-interface PerformanceData {
-  type: 'navigation' | 'resource' | 'paint'
-  name: string
-  duration: number
-  startTime: number
-  timestamp: number
-  details?: Record<string, unknown>
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', monitorDOM)
+} else {
+	monitorDOM()
 }
 
-interface NetworkData {
-  url: string
-  method: string
-  status: number
-  duration: number
-  transferSize: number
-  timestamp: number
+const originalFetch = window.fetch
+window.fetch = async (...args) => {
+	const startTime = performance.now()
+
+	try {
+		const response = await originalFetch(...args)
+		const endTime = performance.now()
+
+		console.log('[Spectra] Fetch completed:', {
+			url: args[0],
+			method: args[1]?.method || 'GET',
+			duration: endTime - startTime,
+			status: response.status
+		})
+
+		return response
+	} catch (error: any) {
+		console.log('[Spectra] Fetch error:', {
+			url: args[0],
+			method: args[1]?.method || 'GET',
+			error: error.message
+		})
+
+		throw error
+	}
 }
 
-class DataCollector {
-  constructor() {
-    this.initErrorTracking()
-    this.initPerformanceTracking()
-    this.initNetworkTracking()
-    console.log('[Spectra] Data collector initialized')
-  }
-
-  private sendToContent(data: ErrorData | PerformanceData | NetworkData) {
-    window.postMessage({ type: 'SPECTRA_DATA', payload: data }, '*')
-  }
-
-  private initErrorTracking() {
-    window.onerror = (message, source, lineno, colno, error) => {
-      const errorData: ErrorData = {
-        type: 'error',
-        message: String(message),
-        source,
-        lineno,
-        colno,
-        stack: error?.stack,
-        timestamp: Date.now()
-      }
-      this.sendToContent(errorData)
-      console.log('[Spectra]', errorData)
-      return false
-    }
-
-    window.addEventListener('unhandledrejection', (event) => {
-      const errorData: ErrorData = {
-        type: 'unhandledrejection',
-        message: String(event.reason),
-        stack: event.reason?.stack,
-        timestamp: Date.now()
-      }
-      this.sendToContent(errorData)
-      console.log('[Spectra]', errorData)
-      event.preventDefault()
-    })
-  }
-
-  private initPerformanceTracking() {
-    const observer = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        let type: 'navigation' | 'resource' | 'paint' = 'resource'
-        if (entry.entryType === 'navigation') type = 'navigation'
-        else if (entry.entryType === 'paint') type = 'paint'
-
-        const perfData: PerformanceData = {
-          type,
-          name: entry.name,
-          duration: entry.duration,
-          startTime: entry.startTime,
-          timestamp: Date.now(),
-          details: this.extractPerformanceDetails(entry)
-        }
-        this.sendToContent(perfData)
-        console.log('[Spectra]', perfData)
-      }
-    })
-
-    observer.observe({ entryTypes: ['navigation', 'resource', 'paint'] })
-
-    window.addEventListener('load', () => {
-      if (performance.getEntriesByType('navigation').length > 0) {
-        const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
-        const navData: PerformanceData = {
-          type: 'navigation',
-          name: nav.name,
-          duration: nav.duration,
-          startTime: nav.startTime,
-          timestamp: Date.now(),
-          details: {
-            domContentLoaded: nav.domContentLoadedEventEnd - nav.domContentLoadedEventStart,
-            domInteractive: nav.domInteractive,
-            loadEventEnd: nav.loadEventEnd,
-            redirectCount: nav.redirectCount,
-            transferSize: nav.transferSize,
-            encodedBodySize: nav.encodedBodySize,
-            decodedBodySize: nav.decodedBodySize
-          }
-        }
-        this.sendToContent(navData)
-        console.log('[Spectra]', navData)
-      }
-    })
-  }
-
-  private extractPerformanceDetails(entry: PerformanceEntry): Record<string, unknown> {
-    const details: Record<string, unknown> = {}
-
-    if (entry.entryType === 'resource') {
-      const resource = entry as PerformanceResourceTiming
-      details.initiatorType = resource.initiatorType
-      details.transferSize = resource.transferSize
-      details.encodedBodySize = resource.encodedBodySize
-      details.decodedBodySize = resource.decodedBodySize
-      details.duration = resource.duration
-      details.responseEnd = resource.responseEnd
-    }
-
-    if (entry.entryType === 'paint') {
-      const paint = entry as PerformancePaintTiming
-      details.renderTime = paint.startTime
-    }
-
-    return details
-  }
-
-  private initNetworkTracking() {
-    const observer = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
-        if (entry.entryType === 'resource') {
-          const resource = entry as PerformanceResourceTiming
-          if (resource.initiatorType === 'xmlhttprequest' || resource.initiatorType === 'fetch') {
-            const networkData: NetworkData = {
-              url: resource.name,
-              method: 'GET',
-              status: 0,
-              duration: resource.duration,
-              transferSize: resource.transferSize,
-              timestamp: Date.now()
-            }
-            this.sendToContent(networkData)
-            console.log('[Spectra]', networkData)
-          }
-        }
-      }
-    })
-
-    observer.observe({ entryTypes: ['resource'] })
-  }
-}
-
-new DataCollector()
+console.log('[Spectra] Injected script initialized')
