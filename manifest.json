@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
 	"name": "Spectra Monitor",
-	"version": "2.0.0",
+	"version": "1.0.0",
 	"description": "Real-time error tracking for web applications",
 	"permissions": ["storage", "activeTab", "alarms", "scripting"],
 	"host_permissions": ["https://*/*", "http://*/*"],

@@ -1,45 +1,54 @@
-console.log('[Spectra] Injected script loaded')
+window.__SPECTRA_INJECTED__ = true
 
-const monitorDOM = () => {
-	console.log('[Spectra] DOM ready on ', window.location.href)
+const origFetch = window.fetch
 
-	const iframes = document.querySelectorAll('iframe')
-	if (iframes.length > 0) {
-		console.log('[Spectra] Found ', iframes.length, 'iframes')
-	}
+const sendLog = (log: {
+	url: string
+	level: 'error' | 'warning' | 'info' | 'log'
+	message: string
+	stackTrace?: string
+	metadata?: object
+}) => {
+	chrome.runtime.sendMessage(
+		{
+			type: 'ADD_LOG',
+			payload: {
+				url: log.url,
+				level: log.level,
+				message: log.message,
+				stackTrace: log.stackTrace,
+				metadata: log.metadata,
+				timestamp: Date.now()
+			}
+		},
+		() => {}
+	)
 }
 
-if (document.readyState === 'loading') {
-	document.addEventListener('DOMContentLoaded', monitorDOM)
-} else {
-	monitorDOM()
-}
-
-const originalFetch = window.fetch
 window.fetch = async (...args) => {
-	const startTime = performance.now()
+	const url = typeof args[0] === 'string' ? args[0] : args[0].url
 
 	try {
-		const response = await originalFetch(...args)
-		const endTime = performance.now()
+		const response = await origFetch(...args)
 
-		console.log('[Spectra] Fetch completed:', {
-			url: args[0],
-			method: args[1]?.method || 'GET',
-			duration: endTime - startTime,
-			status: response.status
-		})
+		if (!response.ok) {
+			sendLog({
+				url: window.location.href,
+				level: 'error',
+				message: `Fetch failed: ${response.status} ${response.statusText} - ${url}`,
+				metadata: { fetchStatus: response.status }
+			})
+		}
 
 		return response
 	} catch (error: any) {
-		console.log('[Spectra] Fetch error:', {
-			url: args[0],
-			method: args[1]?.method || 'GET',
-			error: error.message
+		sendLog({
+			url: window.location.href,
+			level: 'error',
+			message: `Fetch error: ${error.message} - ${url}`,
+			stackTrace: error.stack,
+			metadata: { fetchError: true }
 		})
-
 		throw error
 	}
 }
-
-console.log('[Spectra] Injected script initialized')

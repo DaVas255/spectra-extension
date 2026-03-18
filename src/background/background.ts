@@ -63,6 +63,15 @@ const isSiteTracked = (siteUrl: string, sites: TrackedSite[]): boolean => {
 		for (const site of sites) {
 			if (!site.isActive) continue
 
+			try {
+				const siteUrlObj = new URL(site.url)
+				const siteHost = siteUrlObj.host
+
+				if (host === siteHost) {
+					return true
+				}
+			} catch {}
+
 			if (site.urlPattern) {
 				const pattern = site.urlPattern
 					.replace(/\./g, '\\.')
@@ -71,10 +80,6 @@ const isSiteTracked = (siteUrl: string, sites: TrackedSite[]): boolean => {
 				if (regex.test(siteUrl) || regex.test(host)) {
 					return true
 				}
-			}
-
-			if (site.url.includes(host)) {
-				return true
 			}
 		}
 		return false
@@ -98,52 +103,44 @@ const fetchTrackedSites = async (apiKey: string): Promise<TrackedSite[]> => {
 		}
 
 		return await response.json()
-	} catch (error) {
-		console.error('[Spectra] Failed to fetch tracked sites:', error)
+	} catch {
 		return []
 	}
 }
 
 const sendLogs = async (apiKey: string, logs: LogEntry[]): Promise<{ new: number; grouped: number }> => {
-	try {
-		const response = await fetch(`${API_BASE_URL}/user-logs`, {
-			method: 'POST',
-			headers: {
-				'X-API-Key': apiKey,
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ logs })
-		})
+	const response = await fetch(`${API_BASE_URL}/user-logs`, {
+		method: 'POST',
+		headers: {
+			'X-API-Key': apiKey,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ logs })
+	})
 
-		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`)
-		}
-
-		return await response.json()
-	} catch (error) {
-		console.error('[Spectra] Failed to send logs:', error)
-		throw error
+	if (!response.ok) {
+		throw new Error(`HTTP ${response.status}`)
 	}
+
+	return await response.json()
 }
 
 const processLogBuffer = async () => {
 	if (isProcessing || logBuffer.length === 0) return
 
 	const storage = await getStorage()
-	if (!storage.apiKey) {
-		console.log('[Spectra] No API key, skipping log submission')
-		return
-	}
+	if (!storage.apiKey) return
 
 	isProcessing = true
+	let logsToSend: LogEntry[] = []
 
 	try {
-		const logsToSend = logBuffer.splice(0, BATCH_MAX_SIZE)
-		const result = await sendLogs(storage.apiKey, logsToSend)
-		console.log(`[Spectra] Sent ${logsToSend.length} logs: new=${result.new}, grouped=${result.grouped}`)
-	} catch (error) {
-		logBuffer.unshift(...logBuffer.splice(0, BATCH_MAX_SIZE))
-		console.error('[Spectra] Failed to process logs, will retry')
+		logsToSend = logBuffer.splice(0, BATCH_MAX_SIZE)
+		await sendLogs(storage.apiKey, logsToSend)
+	} catch {
+		if (logsToSend.length > 0) {
+			logBuffer.unshift(...logsToSend)
+		}
 	} finally {
 		isProcessing = false
 	}
@@ -155,17 +152,13 @@ const startBatchTimer = () => {
 
 const startPolling = async () => {
 	const storage = await getStorage()
-	if (!storage.apiKey) {
-		console.log('[Spectra] No API key, skipping polling')
-		return
-	}
+	if (!storage.apiKey) return
 
 	const sites = await fetchTrackedSites(storage.apiKey)
 	await setStorage({
 		trackedSites: sites,
 		lastSync: Date.now()
 	})
-	console.log(`[Spectra] Synced ${sites.length} tracked sites`)
 
 	chrome.alarms.create('pollingTimer', { delayInMinutes: POLLING_INTERVAL, periodInMinutes: POLLING_INTERVAL })
 }
@@ -175,8 +168,6 @@ const handleMessage = (
 	sender: chrome.runtime.MessageSender,
 	sendResponse: (response?: unknown) => void
 ) => {
-	console.log('[Spectra] Received message:', request)
-
 	switch (request.type) {
 		case 'PING':
 			sendResponse({ type: 'PONG', timestamp: Date.now() })
@@ -185,7 +176,6 @@ const handleMessage = (
 		case 'SET_API_KEY': {
 			const apiKey = request.payload as string
 			setStorage({ apiKey }).then(async () => {
-				console.log('[Spectra] API key saved')
 				await startPolling()
 				startBatchTimer()
 				sendResponse({ success: true })
@@ -227,7 +217,6 @@ const handleMessage = (
 				}
 
 				logBuffer.push(log)
-				console.log(`[Spectra] Log added, buffer size: ${logBuffer.length}`)
 
 				if (logBuffer.length >= BATCH_MAX_SIZE) {
 					await processLogBuffer()
@@ -263,19 +252,16 @@ chrome.alarms.onAlarm.addListener(alarm => {
 					trackedSites: sites,
 					lastSync: Date.now()
 				})
-				console.log(`[Spectra] Synced ${sites.length} tracked sites`)
 			}
 		})
 	}
 })
 
-chrome.runtime.onInstalled.addListener(details => {
-	console.log('[Spectra] Extension installed:', details.reason)
+chrome.runtime.onInstalled.addListener(() => {
 	startBatchTimer()
 })
 
 chrome.runtime.onStartup.addListener(() => {
-	console.log('[Spectra] Browser started')
 	startBatchTimer()
 	getStorage().then(storage => {
 		if (storage.apiKey) {
@@ -285,15 +271,11 @@ chrome.runtime.onStartup.addListener(() => {
 })
 
 chrome.runtime.onSuspend.addListener(() => {
-	console.log('[Spectra] Background service suspended')
 	processLogBuffer()
 })
 
 chrome.runtime.onSuspendCanceled.addListener(() => {
-	console.log('[Spectra] Background service resumed')
 	startBatchTimer()
 })
 
 chrome.runtime.onMessage.addListener(handleMessage)
-
-console.log('[Spectra] Background service worker initialized')

@@ -1,47 +1,41 @@
-console.log('[Spectra] Popup script started')
-
 const apiKeyInput = document.getElementById('api-key') as HTMLInputElement
 const saveButton = document.getElementById('save-button')
+const clearButton = document.getElementById('clear-button')
 const statusElement = document.getElementById('status')
 const sitesCountElement = document.getElementById('sites-count')
 const lastSyncElement = document.getElementById('last-sync')
 const versionElement = document.getElementById('version')
 const bufferSizeElement = document.getElementById('buffer-size')
 
-const initPopup = async () => {
-	console.log('[Spectra] Popup initialized')
-
+const initPopup = () => {
 	if (versionElement) {
 		const manifest = chrome.runtime.getManifest()
 		versionElement.textContent = 'v' + manifest.version
 	}
 
-	await updateStatus()
+	updateStatus()
 }
 
 const updateStatus = () => {
 	chrome.runtime.sendMessage({ type: 'GET_STATUS' }, response => {
 		if (response?.apiKey) {
-			if (statusElement) {
-				statusElement.textContent = 'Подключено'
-				statusElement.className = 'status status-active'
-			}
-			if (apiKeyInput) {
-				apiKeyInput.value = response.apiKey ? '********' : ''
-				apiKeyInput.disabled = true
-			}
-			if (saveButton) {
-				saveButton.textContent = 'Изменить'
-			}
+			statusElement.textContent = 'Подключено'
+			statusElement.className = 'status status-active'
+			apiKeyInput.value = '********'
+			apiKeyInput.disabled = true
+			saveButton.textContent = 'Сохранить'
+			clearButton.style.display = 'block'
 		} else {
-			if (statusElement) {
-				statusElement.textContent = 'Не подключено'
-				statusElement.className = 'status status-inactive'
-			}
+			statusElement.textContent = 'Не подключено'
+			statusElement.className = 'status status-inactive'
+			apiKeyInput.value = ''
+			apiKeyInput.disabled = false
+			saveButton.textContent = 'Сохранить'
+			clearButton.style.display = 'none'
 		}
 
-		if (sitesCountElement && response?.sitesCount !== undefined) {
-			sitesCountElement.textContent = `Сайтов: ${response.sitesCount}`
+		if (sitesCountElement) {
+			sitesCountElement.textContent = `Сайтов: ${response?.sitesCount || 0}`
 		}
 
 		if (lastSyncElement && response?.lastSync) {
@@ -49,14 +43,14 @@ const updateStatus = () => {
 			lastSyncElement.textContent = `Синхронизация: ${date.toLocaleTimeString()}`
 		}
 
-		if (bufferSizeElement && response?.bufferSize !== undefined) {
-			bufferSizeElement.textContent = `В буфере: ${response.bufferSize}`
+		if (bufferSizeElement) {
+			bufferSizeElement.textContent = `В буфере: ${response?.bufferSize || 0}`
 		}
 	})
 }
 
-const saveApiKey = async () => {
-	const apiKey = apiKeyInput?.value.trim()
+const saveApiKey = () => {
+	const apiKey = apiKeyInput.value.trim()
 
 	if (!apiKey) {
 		alert('Введите API ключ')
@@ -68,44 +62,20 @@ const saveApiKey = async () => {
 		return
 	}
 
-	chrome.runtime.sendMessage(
-		{ type: 'SET_API_KEY', payload: apiKey },
-		response => {
-			if (response?.success) {
-				alert('API ключ сохранен')
-				updateStatus()
-			} else {
-				alert('Ошибка сохранения API ключа')
-			}
+	chrome.runtime.sendMessage({ type: 'SET_API_KEY', payload: apiKey }, response => {
+		if (response?.success) {
+			updateStatus()
 		}
-	)
+	})
 }
 
-const clearApiKey = async () => {
-	chrome.storage.local.clear()
-	alert('API ключ удален')
-	if (apiKeyInput) {
-		apiKeyInput.value = ''
-		apiKeyInput.disabled = false
-	}
-	if (saveButton) {
-		saveButton.textContent = 'Сохранить'
-	}
-	updateStatus()
+const clearApiKey = () => {
+	chrome.storage.local.clear(() => {
+		updateStatus()
+	})
 }
 
-saveButton?.addEventListener('click', () => {
-	if (saveButton.textContent === 'Изменить') {
-		if (apiKeyInput) {
-			apiKeyInput.disabled = false
-			apiKeyInput.value = ''
-		}
-		saveButton.textContent = 'Сохранить'
-	} else {
-		saveApiKey()
-	}
-})
+saveButton.addEventListener('click', saveApiKey)
+clearButton?.addEventListener('click', clearApiKey)
 
 document.addEventListener('DOMContentLoaded', initPopup)
-
-console.log('[Spectra] Popup script initialized')
