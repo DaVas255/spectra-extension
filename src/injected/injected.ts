@@ -1,54 +1,89 @@
-window.__SPECTRA_INJECTED__ = true
+import type { LogEntry } from '../shared/types'
 
-const origFetch = window.fetch
+if ((window as any).__spectra_injected__) {
+	throw new Error('already injected')
+}
+;(window as any).__spectra_injected__ = true
 
-const sendLog = (log: {
-	url: string
-	level: 'error' | 'warning' | 'info' | 'log'
-	message: string
-	stackTrace?: string
-	metadata?: object
-}) => {
-	chrome.runtime.sendMessage(
+const getMetadata = () => ({
+	userAgent: navigator.userAgent,
+	viewport: `${window.innerWidth}x${window.innerHeight}`,
+	browser: navigator.userAgent.includes('Firefox')
+		? 'Firefox'
+		: navigator.userAgent.includes('Edg')
+			? 'Edge'
+			: navigator.userAgent.includes('Chrome')
+				? 'Chrome'
+				: navigator.userAgent.includes('Safari')
+					? 'Safari'
+					: 'Unknown'
+})
+
+const sendLog = (log: Omit<LogEntry, 'url' | 'metadata' | 'timestamp'>) => {
+	window.postMessage(
 		{
+			__spectra: true,
 			type: 'ADD_LOG',
 			payload: {
-				url: log.url,
-				level: log.level,
-				message: log.message,
-				stackTrace: log.stackTrace,
-				metadata: log.metadata,
+				...log,
+				url: window.location.href,
+				metadata: getMetadata(),
 				timestamp: Date.now()
 			}
 		},
-		() => {}
+		'*'
 	)
 }
 
+window.addEventListener('error', event => {
+	sendLog({
+		level: 'error',
+		message: event.error?.message || event.message,
+		stackTrace: event.error?.stack,
+		fileName: event.filename,
+		lineNumber: event.lineno,
+		columnNumber: event.colno
+	})
+})
+
+window.addEventListener('unhandledrejection', event => {
+	sendLog({
+		level: 'error',
+		message: event.reason?.message || String(event.reason),
+		stackTrace: event.reason?.stack
+	})
+})
+
+const origError = console.error.bind(console)
+console.error = function (...args: unknown[]) {
+	origError(...args)
+	sendLog({
+		level: 'error',
+		message: args
+			.map(a => (a instanceof Error ? a.message : String(a)))
+			.join(' '),
+		stackTrace: args[0] instanceof Error ? args[0].stack : undefined
+	})
+}
+
+const origFetch = window.fetch
 window.fetch = async (...args) => {
-	const url = typeof args[0] === 'string' ? args[0] : args[0].url
-
+	const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url
 	try {
-		const response = await origFetch(...args)
-
-		if (!response.ok) {
+		const res = await origFetch(...args)
+		if (!res.ok) {
 			sendLog({
-				url: window.location.href,
 				level: 'error',
-				message: `Fetch failed: ${response.status} ${response.statusText} - ${url}`,
-				metadata: { fetchStatus: response.status }
+				message: `HTTP ${res.status} ${url}`
 			})
 		}
-
-		return response
-	} catch (error: any) {
+		return res
+	} catch (e: any) {
 		sendLog({
-			url: window.location.href,
 			level: 'error',
-			message: `Fetch error: ${error.message} - ${url}`,
-			stackTrace: error.stack,
-			metadata: { fetchError: true }
+			message: `Fetch failed: ${e.message} — ${url}`,
+			stackTrace: e.stack
 		})
-		throw error
+		throw e
 	}
 }

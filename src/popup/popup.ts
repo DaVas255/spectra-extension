@@ -19,19 +19,27 @@ const initPopup = () => {
 const updateStatus = () => {
 	chrome.runtime.sendMessage({ type: 'GET_STATUS' }, response => {
 		if (response?.apiKey) {
-			statusElement.textContent = 'Подключено'
-			statusElement.className = 'status status-active'
-			apiKeyInput.value = '********'
-			apiKeyInput.disabled = true
-			saveButton.textContent = 'Сохранить'
-			clearButton.style.display = 'block'
+			if (statusElement) {
+				statusElement.textContent = 'Подключено'
+				statusElement.className = 'status status-active'
+			}
+			if (apiKeyInput) {
+				apiKeyInput.value = '********'
+				apiKeyInput.disabled = true
+			}
+			if (saveButton) saveButton.textContent = 'Сохранить'
+			if (clearButton) clearButton.style.display = 'block'
 		} else {
-			statusElement.textContent = 'Не подключено'
-			statusElement.className = 'status status-inactive'
-			apiKeyInput.value = ''
-			apiKeyInput.disabled = false
-			saveButton.textContent = 'Сохранить'
-			clearButton.style.display = 'none'
+			if (statusElement) {
+				statusElement.textContent = 'Не подключено'
+				statusElement.className = 'status status-inactive'
+			}
+			if (apiKeyInput) {
+				apiKeyInput.value = ''
+				apiKeyInput.disabled = false
+			}
+			if (saveButton) saveButton.textContent = 'Сохранить'
+			if (clearButton) clearButton.style.display = 'none'
 		}
 
 		if (sitesCountElement) {
@@ -62,11 +70,14 @@ const saveApiKey = () => {
 		return
 	}
 
-	chrome.runtime.sendMessage({ type: 'SET_API_KEY', payload: apiKey }, response => {
-		if (response?.success) {
-			updateStatus()
+	chrome.runtime.sendMessage(
+		{ type: 'SET_API_KEY', payload: apiKey },
+		response => {
+			if (response?.success) {
+				updateStatus()
+			}
 		}
-	})
+	)
 }
 
 const clearApiKey = () => {
@@ -75,7 +86,7 @@ const clearApiKey = () => {
 	})
 }
 
-saveButton.addEventListener('click', saveApiKey)
+saveButton?.addEventListener('click', saveApiKey)
 clearButton?.addEventListener('click', clearApiKey)
 
 document.addEventListener('DOMContentLoaded', initPopup)

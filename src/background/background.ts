@@ -1,38 +1,5 @@
-const API_BASE_URL = 'http://localhost:4200/api'
-const POLLING_INTERVAL = 30
-const BATCH_MAX_SIZE = 20
-const BATCH_INTERVAL = 5
-
-interface LogEntry {
-	url: string
-	level: 'error' | 'warning' | 'info' | 'log'
-	message: string
-	stackTrace?: string
-	fileName?: string
-	lineNumber?: number
-	columnNumber?: number
-	metadata?: {
-		userAgent?: string
-		viewport?: string
-		os?: string
-		browser?: string
-	}
-	timestamp: number
-}
-
-interface TrackedSite {
-	id: number
-	url: string
-	urlPattern?: string
-	name?: string
-	isActive: boolean
-}
-
-interface StorageData {
-	apiKey: string | null
-	trackedSites: TrackedSite[]
-	lastSync: number | null
-}
+import { API_BASE_URL, POLLING_INTERVAL, BATCH_MAX_SIZE, BATCH_INTERVAL } from '../shared/constants'
+import { LogEntry, TrackedSite, StorageData, Message } from '../shared/types'
 
 let logBuffer: LogEntry[] = []
 let isProcessing = false
@@ -64,12 +31,8 @@ const isSiteTracked = (siteUrl: string, sites: TrackedSite[]): boolean => {
 			if (!site.isActive) continue
 
 			try {
-				const siteUrlObj = new URL(site.url)
-				const siteHost = siteUrlObj.host
-
-				if (host === siteHost) {
-					return true
-				}
+				const siteHost = new URL(site.url).host
+				if (host === siteHost) return true
 			} catch {}
 
 			if (site.urlPattern) {
@@ -77,9 +40,7 @@ const isSiteTracked = (siteUrl: string, sites: TrackedSite[]): boolean => {
 					.replace(/\./g, '\\.')
 					.replace(/\*/g, '.*')
 				const regex = new RegExp(`^${pattern}$`, 'i')
-				if (regex.test(siteUrl) || regex.test(host)) {
-					return true
-				}
+				if (regex.test(siteUrl) || regex.test(host)) return true
 			}
 		}
 		return false
@@ -91,16 +52,13 @@ const isSiteTracked = (siteUrl: string, sites: TrackedSite[]): boolean => {
 const fetchTrackedSites = async (apiKey: string): Promise<TrackedSite[]> => {
 	try {
 		const response = await fetch(`${API_BASE_URL}/public/tracked-sites`, {
-			method: 'GET',
 			headers: {
 				'X-API-Key': apiKey,
 				'Content-Type': 'application/json'
 			}
 		})
 
-		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}`)
-		}
+		if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
 		return await response.json()
 	} catch {
@@ -108,7 +66,7 @@ const fetchTrackedSites = async (apiKey: string): Promise<TrackedSite[]> => {
 	}
 }
 
-const sendLogs = async (apiKey: string, logs: LogEntry[]): Promise<{ new: number; grouped: number }> => {
+const sendLogs = async (apiKey: string, logs: LogEntry[]): Promise<void> => {
 	const response = await fetch(`${API_BASE_URL}/user-logs`, {
 		method: 'POST',
 		headers: {
@@ -118,11 +76,24 @@ const sendLogs = async (apiKey: string, logs: LogEntry[]): Promise<{ new: number
 		body: JSON.stringify({ logs })
 	})
 
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status}`)
-	}
+	if (!response.ok) throw new Error(`HTTP ${response.status}`)
+}
 
-	return await response.json()
+const persistBuffer = (): Promise<void> => {
+	return new Promise(resolve => {
+		chrome.storage.session.set({ logBuffer }, () => resolve())
+	})
+}
+
+const restoreBuffer = async (): Promise<void> => {
+	return new Promise(resolve => {
+		chrome.storage.session.get('logBuffer', result => {
+			if (Array.isArray(result.logBuffer) && result.logBuffer.length > 0) {
+				logBuffer = result.logBuffer
+			}
+			resolve()
+		})
+	})
 }
 
 const processLogBuffer = async () => {
@@ -137,17 +108,19 @@ const processLogBuffer = async () => {
 	try {
 		logsToSend = logBuffer.splice(0, BATCH_MAX_SIZE)
 		await sendLogs(storage.apiKey, logsToSend)
+		await persistBuffer()
 	} catch {
-		if (logsToSend.length > 0) {
-			logBuffer.unshift(...logsToSend)
-		}
+		logBuffer.unshift(...logsToSend)
 	} finally {
 		isProcessing = false
 	}
 }
 
 const startBatchTimer = () => {
-	chrome.alarms.create('batchTimer', { delayInMinutes: BATCH_INTERVAL / 60, periodInMinutes: BATCH_INTERVAL / 60 })
+	chrome.alarms.create('batchTimer', {
+		delayInMinutes: BATCH_INTERVAL / 60,
+		periodInMinutes: BATCH_INTERVAL / 60
+	})
 }
 
 const startPolling = async () => {
@@ -155,17 +128,17 @@ const startPolling = async () => {
 	if (!storage.apiKey) return
 
 	const sites = await fetchTrackedSites(storage.apiKey)
-	await setStorage({
-		trackedSites: sites,
-		lastSync: Date.now()
-	})
+	await setStorage({ trackedSites: sites, lastSync: Date.now() })
 
-	chrome.alarms.create('pollingTimer', { delayInMinutes: POLLING_INTERVAL, periodInMinutes: POLLING_INTERVAL })
+	chrome.alarms.create('pollingTimer', {
+		delayInMinutes: POLLING_INTERVAL,
+		periodInMinutes: POLLING_INTERVAL
+	})
 }
 
 const handleMessage = (
-	request: { type: string; payload?: unknown },
-	sender: chrome.runtime.MessageSender,
+	request: Message,
+	_sender: chrome.runtime.MessageSender,
 	sendResponse: (response?: unknown) => void
 ) => {
 	switch (request.type) {
@@ -210,13 +183,13 @@ const handleMessage = (
 					return
 				}
 
-				const isTracked = isSiteTracked(log.url, storage.trackedSites)
-				if (!isTracked) {
+				if (!isSiteTracked(log.url, storage.trackedSites)) {
 					sendResponse({ success: false, reason: 'Site not tracked' })
 					return
 				}
 
 				logBuffer.push(log)
+				await persistBuffer()
 
 				if (logBuffer.length >= BATCH_MAX_SIZE) {
 					await processLogBuffer()
@@ -229,9 +202,7 @@ const handleMessage = (
 
 		case 'TOGGLE_MONITORING': {
 			getStorage().then(storage => {
-				sendResponse({
-					status: storage.apiKey ? 'Active' : 'Inactive'
-				})
+				sendResponse({ status: storage.apiKey ? 'Active' : 'Inactive' })
 			})
 			return true
 		}
@@ -248,10 +219,7 @@ chrome.alarms.onAlarm.addListener(alarm => {
 		getStorage().then(async storage => {
 			if (storage.apiKey) {
 				const sites = await fetchTrackedSites(storage.apiKey)
-				await setStorage({
-					trackedSites: sites,
-					lastSync: Date.now()
-				})
+				await setStorage({ trackedSites: sites, lastSync: Date.now() })
 			}
 		})
 	}
@@ -261,13 +229,11 @@ chrome.runtime.onInstalled.addListener(() => {
 	startBatchTimer()
 })
 
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
+	await restoreBuffer()
 	startBatchTimer()
-	getStorage().then(storage => {
-		if (storage.apiKey) {
-			startPolling()
-		}
-	})
+	const storage = await getStorage()
+	if (storage.apiKey) await startPolling()
 })
 
 chrome.runtime.onSuspend.addListener(() => {

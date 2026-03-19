@@ -24,7 +24,7 @@ export default [
           { src: 'manifest.json', dest: 'dist' },
           { src: 'icons', dest: 'dist' }
         ],
-        hook: 'buildStart'
+        hook: 'writeBundle'
       })
     ]
   },
