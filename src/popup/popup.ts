@@ -27,7 +27,7 @@ const updateStatus = () => {
 				apiKeyInput.value = '********'
 				apiKeyInput.disabled = true
 			}
-			if (saveButton) saveButton.textContent = 'Сохранить'
+			if (saveButton) saveButton.style.display = 'none'
 			if (clearButton) clearButton.style.display = 'block'
 		} else {
 			if (statusElement) {
@@ -38,7 +38,7 @@ const updateStatus = () => {
 				apiKeyInput.value = ''
 				apiKeyInput.disabled = false
 			}
-			if (saveButton) saveButton.textContent = 'Сохранить'
+			if (saveButton) saveButton.style.display = 'block'
 			if (clearButton) clearButton.style.display = 'none'
 		}
 
