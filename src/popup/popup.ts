@@ -89,4 +89,12 @@ const clearApiKey = () => {
 saveButton?.addEventListener('click', saveApiKey)
 clearButton?.addEventListener('click', clearApiKey)
 
+chrome.storage.onChanged.addListener((changes, areaName) => {
+	if (areaName === 'session' && changes.bufferSize) {
+		if (bufferSizeElement) {
+			bufferSizeElement.textContent = `В буфере: ${changes.bufferSize.newValue}`
+		}
+	}
+})
+
 document.addEventListener('DOMContentLoaded', initPopup)

@@ -1,4 +1,9 @@
-import { API_BASE_URL, POLLING_INTERVAL, BATCH_MAX_SIZE, BATCH_INTERVAL } from '../shared/constants'
+import {
+	API_BASE_URL,
+	POLLING_INTERVAL,
+	BATCH_MAX_SIZE,
+	BATCH_INTERVAL
+} from '../shared/constants'
 import { LogEntry, TrackedSite, StorageData, Message } from '../shared/types'
 
 let logBuffer: LogEntry[] = []
@@ -81,7 +86,13 @@ const sendLogs = async (apiKey: string, logs: LogEntry[]): Promise<void> => {
 
 const persistBuffer = (): Promise<void> => {
 	return new Promise(resolve => {
-		chrome.storage.session.set({ logBuffer }, () => resolve())
+		chrome.storage.session.set(
+			{
+				logBuffer,
+				bufferSize: logBuffer.length
+			},
+			() => resolve()
+		)
 	})
 }
 
@@ -90,6 +101,7 @@ const restoreBuffer = async (): Promise<void> => {
 		chrome.storage.session.get('logBuffer', result => {
 			if (Array.isArray(result.logBuffer) && result.logBuffer.length > 0) {
 				logBuffer = result.logBuffer
+				chrome.storage.session.set({ bufferSize: logBuffer.length })
 			}
 			resolve()
 		})
