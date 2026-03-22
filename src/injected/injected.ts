@@ -1,4 +1,4 @@
-import type { LogEntry } from '../shared/types'
+import type { ErrorEntry } from '../shared/types'
 
 if ((window as any).__spectra_injected__) {
 	throw new Error('already injected')
@@ -19,13 +19,15 @@ const getMetadata = () => ({
 					: 'Unknown'
 })
 
-const sendLog = (log: Omit<LogEntry, 'url' | 'metadata' | 'timestamp'>) => {
+const sendError = (
+	error: Omit<ErrorEntry, 'url' | 'metadata' | 'timestamp'>
+) => {
 	window.postMessage(
 		{
 			__spectra: true,
-			type: 'ADD_LOG',
+			type: 'ADD_ERROR',
 			payload: {
-				...log,
+				...error,
 				url: window.location.href,
 				metadata: getMetadata(),
 				timestamp: Date.now()
@@ -36,8 +38,7 @@ const sendLog = (log: Omit<LogEntry, 'url' | 'metadata' | 'timestamp'>) => {
 }
 
 window.addEventListener('error', event => {
-	sendLog({
-		level: 'error',
+	sendError({
 		message: event.error?.message || event.message,
 		stackTrace: event.error?.stack,
 		fileName: event.filename,
@@ -47,8 +48,7 @@ window.addEventListener('error', event => {
 })
 
 window.addEventListener('unhandledrejection', event => {
-	sendLog({
-		level: 'error',
+	sendError({
 		message: event.reason?.message || String(event.reason),
 		stackTrace: event.reason?.stack
 	})
@@ -57,8 +57,7 @@ window.addEventListener('unhandledrejection', event => {
 const origError = console.error.bind(console)
 console.error = function (...args: unknown[]) {
 	origError(...args)
-	sendLog({
-		level: 'error',
+	sendError({
 		message: args
 			.map(a => (a instanceof Error ? a.message : String(a)))
 			.join(' '),
@@ -72,15 +71,13 @@ window.fetch = async (...args) => {
 	try {
 		const res = await origFetch(...args)
 		if (!res.ok) {
-			sendLog({
-				level: 'error',
+			sendError({
 				message: `HTTP ${res.status} ${url}`
 			})
 		}
 		return res
 	} catch (e: any) {
-		sendLog({
-			level: 'error',
+		sendError({
 			message: `Fetch failed: ${e.message} — ${url}`,
 			stackTrace: e.stack
 		})

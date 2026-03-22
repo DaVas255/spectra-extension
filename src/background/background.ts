@@ -4,9 +4,9 @@ import {
 	BATCH_MAX_SIZE,
 	BATCH_INTERVAL
 } from '../shared/constants'
-import { LogEntry, TrackedSite, StorageData, Message } from '../shared/types'
+import { ErrorEntry, TrackedSite, StorageData, Message } from '../shared/types'
 
-let logBuffer: LogEntry[] = []
+let errorBuffer: ErrorEntry[] = []
 let isProcessing = false
 
 const getStorage = (): Promise<StorageData> => {
@@ -71,14 +71,17 @@ const fetchTrackedSites = async (apiKey: string): Promise<TrackedSite[]> => {
 	}
 }
 
-const sendLogs = async (apiKey: string, logs: LogEntry[]): Promise<void> => {
-	const response = await fetch(`${API_BASE_URL}/user-logs`, {
+const sendErrors = async (
+	apiKey: string,
+	errors: ErrorEntry[]
+): Promise<void> => {
+	const response = await fetch(`${API_BASE_URL}/errors`, {
 		method: 'POST',
 		headers: {
 			'X-API-Key': apiKey,
 			'Content-Type': 'application/json'
 		},
-		body: JSON.stringify({ logs })
+		body: JSON.stringify({ errors })
 	})
 
 	if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -88,8 +91,8 @@ const persistBuffer = (): Promise<void> => {
 	return new Promise(resolve => {
 		chrome.storage.session.set(
 			{
-				logBuffer,
-				bufferSize: logBuffer.length
+				errorBuffer,
+				bufferSize: errorBuffer.length
 			},
 			() => resolve()
 		)
@@ -98,31 +101,31 @@ const persistBuffer = (): Promise<void> => {
 
 const restoreBuffer = async (): Promise<void> => {
 	return new Promise(resolve => {
-		chrome.storage.session.get('logBuffer', result => {
-			if (Array.isArray(result.logBuffer) && result.logBuffer.length > 0) {
-				logBuffer = result.logBuffer
-				chrome.storage.session.set({ bufferSize: logBuffer.length })
+		chrome.storage.session.get('errorBuffer', result => {
+			if (Array.isArray(result.errorBuffer) && result.errorBuffer.length > 0) {
+				errorBuffer = result.errorBuffer
+				chrome.storage.session.set({ bufferSize: errorBuffer.length })
 			}
 			resolve()
 		})
 	})
 }
 
-const processLogBuffer = async () => {
-	if (isProcessing || logBuffer.length === 0) return
+const processErrorBuffer = async () => {
+	if (isProcessing || errorBuffer.length === 0) return
 
 	const storage = await getStorage()
 	if (!storage.apiKey) return
 
 	isProcessing = true
-	let logsToSend: LogEntry[] = []
+	let errorsToSend: ErrorEntry[] = []
 
 	try {
-		logsToSend = logBuffer.splice(0, BATCH_MAX_SIZE)
-		await sendLogs(storage.apiKey, logsToSend)
+		errorsToSend = errorBuffer.splice(0, BATCH_MAX_SIZE)
+		await sendErrors(storage.apiKey, errorsToSend)
 		await persistBuffer()
 	} catch {
-		logBuffer.unshift(...logsToSend)
+		errorBuffer.unshift(...errorsToSend)
 	} finally {
 		isProcessing = false
 	}
@@ -174,7 +177,7 @@ const handleMessage = (
 					apiKey: !!storage.apiKey,
 					sitesCount: storage.trackedSites.length,
 					lastSync: storage.lastSync,
-					bufferSize: logBuffer.length
+					bufferSize: errorBuffer.length
 				})
 			})
 			return true
@@ -187,24 +190,24 @@ const handleMessage = (
 			return true
 		}
 
-		case 'ADD_LOG': {
-			const log = request.payload as LogEntry
+		case 'ADD_ERROR': {
+			const error = request.payload as ErrorEntry
 			getStorage().then(async storage => {
 				if (!storage.apiKey) {
 					sendResponse({ success: false, reason: 'No API key' })
 					return
 				}
 
-				if (!isSiteTracked(log.url, storage.trackedSites)) {
+				if (!isSiteTracked(error.url, storage.trackedSites)) {
 					sendResponse({ success: false, reason: 'Site not tracked' })
 					return
 				}
 
-				logBuffer.push(log)
+				errorBuffer.push(error)
 				await persistBuffer()
 
-				if (logBuffer.length >= BATCH_MAX_SIZE) {
-					await processLogBuffer()
+				if (errorBuffer.length >= BATCH_MAX_SIZE) {
+					await processErrorBuffer()
 				}
 
 				sendResponse({ success: true })
@@ -226,7 +229,7 @@ const handleMessage = (
 
 chrome.alarms.onAlarm.addListener(alarm => {
 	if (alarm.name === 'batchTimer') {
-		processLogBuffer()
+		processErrorBuffer()
 	} else if (alarm.name === 'pollingTimer') {
 		getStorage().then(async storage => {
 			if (storage.apiKey) {
@@ -249,7 +252,7 @@ chrome.runtime.onStartup.addListener(async () => {
 })
 
 chrome.runtime.onSuspend.addListener(() => {
-	processLogBuffer()
+	processErrorBuffer()
 })
 
 chrome.runtime.onSuspendCanceled.addListener(() => {

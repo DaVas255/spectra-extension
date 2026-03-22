@@ -1,6 +1,5 @@
-export interface LogEntry {
+export interface ErrorEntry {
 	url: string
-	level: 'error' | 'warning' | 'info' | 'log'
 	message: string
 	stackTrace?: string
 	fileName?: string
@@ -47,7 +46,7 @@ export type MessageType =
 	| 'SET_API_KEY'
 	| 'GET_STATUS'
 	| 'GET_TRACKED_SITES'
-	| 'ADD_LOG'
+	| 'ADD_ERROR'
 	| 'TOGGLE_MONITORING'
 
 export interface Message {
