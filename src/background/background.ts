@@ -146,8 +146,8 @@ const startPolling = async () => {
 	await setStorage({ trackedSites: sites, lastSync: Date.now() })
 
 	chrome.alarms.create('pollingTimer', {
-		delayInMinutes: POLLING_INTERVAL,
-		periodInMinutes: POLLING_INTERVAL
+		delayInMinutes: POLLING_INTERVAL / 60,
+		periodInMinutes: POLLING_INTERVAL / 60
 	})
 }
 
