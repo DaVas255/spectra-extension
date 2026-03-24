@@ -1,18 +1,95 @@
-export interface ErrorEntry {
+export interface Metadata {
+	userAgent?: string
+	viewport?: string
+	browser?: string
+}
+
+export interface BaseEvent {
 	url: string
+	timestamp: number
+	metadata?: Metadata
+}
+
+export interface ErrorEvent extends BaseEvent {
+	category: 'error'
+	type: string
 	message: string
 	stackTrace?: string
 	fileName?: string
 	lineNumber?: number
 	columnNumber?: number
-	metadata?: {
-		userAgent?: string
-		viewport?: string
-		os?: string
-		browser?: string
-	}
-	timestamp: number
+	source: 'window.onerror' | 'unhandledrejection' | 'console.error'
 }
+
+export interface WarningEvent extends BaseEvent {
+	category: 'warning'
+	message: string
+	stackTrace?: string
+	source: 'console.warn'
+}
+
+export interface InfoEvent extends BaseEvent {
+	category: 'info'
+	message: string
+	source: 'console.info'
+}
+
+export interface LogEvent extends BaseEvent {
+	category: 'log'
+	message: string
+	source: 'console.log'
+}
+
+export interface PerformanceEvent extends BaseEvent {
+	category: 'performance'
+	metricType: 'web-vital' | 'navigation' | 'long-task' | 'resource'
+	metricName:
+		| 'LCP'
+		| 'FID'
+		| 'CLS'
+		| 'TTFB'
+		| 'FCP'
+		| 'long-task'
+		| 'slow-resource'
+		| 'navigation'
+	value: number
+	browser?: string
+}
+
+export interface NetworkEvent extends BaseEvent {
+	category: 'network'
+	method: string
+	requestUrl: string
+	status?: number
+	duration?: number
+	failed: boolean
+	source: 'fetch'
+	pageUrl: string
+}
+
+export interface UserActionEvent extends BaseEvent {
+	category: 'user-action'
+	actionType: 'rage-click' | 'offline' | 'online' | 'visibility-change'
+	element?: string
+	value?: string
+}
+
+export interface SecurityEvent extends BaseEvent {
+	category: 'security'
+	type: 'csp-violation'
+	directive?: string
+	blockedURI?: string
+}
+
+export type SpectraEvent =
+	| ErrorEvent
+	| WarningEvent
+	| InfoEvent
+	| LogEvent
+	| PerformanceEvent
+	| NetworkEvent
+	| UserActionEvent
+	| SecurityEvent
 
 export interface TrackedSite {
 	id: number
@@ -46,7 +123,7 @@ export type MessageType =
 	| 'SET_API_KEY'
 	| 'GET_STATUS'
 	| 'GET_TRACKED_SITES'
-	| 'ADD_ERROR'
+	| 'ADD_EVENT'
 	| 'TOGGLE_MONITORING'
 
 export interface Message {

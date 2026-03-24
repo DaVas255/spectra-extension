@@ -2,11 +2,17 @@ import {
 	API_BASE_URL,
 	POLLING_INTERVAL,
 	BATCH_MAX_SIZE,
-	BATCH_INTERVAL
+	BATCH_INTERVAL,
+	ENDPOINTS
 } from '../shared/constants'
-import { ErrorEntry, TrackedSite, StorageData, Message } from '../shared/types'
+import {
+	SpectraEvent,
+	TrackedSite,
+	StorageData,
+	Message
+} from '../shared/types'
 
-let errorBuffer: ErrorEntry[] = []
+let eventBuffer: SpectraEvent[] = []
 let isProcessing = false
 
 const getStorage = (): Promise<StorageData> => {
@@ -71,71 +77,97 @@ const fetchTrackedSites = async (apiKey: string): Promise<TrackedSite[]> => {
 	}
 }
 
-const sendErrors = async (
+const sendEvents = async (
 	apiKey: string,
-	errors: ErrorEntry[]
+	events: SpectraEvent[]
 ): Promise<void> => {
-	const response = await fetch(`${API_BASE_URL}/errors`, {
-		method: 'POST',
-		headers: {
-			'X-API-Key': apiKey,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ errors })
+	const groups = events.reduce<Record<string, SpectraEvent[]>>((acc, event) => {
+		const key = event.category
+		if (!acc[key]) acc[key] = []
+		acc[key].push(event)
+		return acc
+	}, {})
+
+	const results = await Promise.allSettled(
+		Object.entries(groups).map(([category, categoryEvents]) => {
+			const endpoint = ENDPOINTS[category]
+			if (!endpoint) return Promise.resolve()
+
+			return fetch(`${API_BASE_URL}${endpoint}`, {
+				method: 'POST',
+				headers: {
+					'X-API-Key': apiKey,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ events: categoryEvents })
+			}).then(res => {
+				if (!res.ok) throw new Error(`HTTP ${res.status} for ${endpoint}`)
+			})
+		})
+	)
+
+	const failedEvents = results.flatMap((result, i) => {
+		if (result.status === 'rejected') {
+			const category = Object.keys(groups)[i]
+			return groups[category]
+		}
+		return []
 	})
 
-	if (!response.ok) throw new Error(`HTTP ${response.status}`)
+	if (failedEvents.length > 0) {
+		eventBuffer.unshift(...failedEvents)
+	}
 }
 
 const persistBuffer = (): Promise<void> => {
 	return new Promise(resolve => {
 		chrome.storage.session.set(
-			{
-				errorBuffer,
-				bufferSize: errorBuffer.length
-			},
+			{ eventBuffer, bufferSize: eventBuffer.length },
 			() => resolve()
 		)
 	})
 }
 
-const restoreBuffer = async (): Promise<void> => {
+const restoreBuffer = (): Promise<void> => {
 	return new Promise(resolve => {
-		chrome.storage.session.get('errorBuffer', result => {
-			if (Array.isArray(result.errorBuffer) && result.errorBuffer.length > 0) {
-				errorBuffer = result.errorBuffer
-				chrome.storage.session.set({ bufferSize: errorBuffer.length })
+		chrome.storage.session.get('eventBuffer', result => {
+			if (Array.isArray(result.eventBuffer) && result.eventBuffer.length > 0) {
+				eventBuffer = result.eventBuffer
+				chrome.storage.session.set({ bufferSize: eventBuffer.length })
 			}
 			resolve()
 		})
 	})
 }
 
-const processErrorBuffer = async () => {
-	if (isProcessing || errorBuffer.length === 0) return
+const processEventBuffer = async () => {
+	if (isProcessing || eventBuffer.length === 0) return
 
 	const storage = await getStorage()
 	if (!storage.apiKey) return
 
 	isProcessing = true
-	let errorsToSend: ErrorEntry[] = []
+	let eventsToSend: SpectraEvent[] = []
 
 	try {
-		errorsToSend = errorBuffer.splice(0, BATCH_MAX_SIZE)
-		await sendErrors(storage.apiKey, errorsToSend)
+		eventsToSend = eventBuffer.splice(0, BATCH_MAX_SIZE)
+		await sendEvents(storage.apiKey, eventsToSend)
 		await persistBuffer()
 	} catch {
-		errorBuffer.unshift(...errorsToSend)
+		eventBuffer.unshift(...eventsToSend)
 	} finally {
 		isProcessing = false
 	}
 }
 
-const startBatchTimer = () => {
-	chrome.alarms.create('batchTimer', {
-		delayInMinutes: BATCH_INTERVAL / 60,
-		periodInMinutes: BATCH_INTERVAL / 60
-	})
+const startBatchTimer = async () => {
+	const existing = await chrome.alarms.get('batchTimer')
+	if (!existing) {
+		chrome.alarms.create('batchTimer', {
+			delayInMinutes: BATCH_INTERVAL / 60,
+			periodInMinutes: BATCH_INTERVAL / 60
+		})
+	}
 }
 
 const startPolling = async () => {
@@ -145,10 +177,13 @@ const startPolling = async () => {
 	const sites = await fetchTrackedSites(storage.apiKey)
 	await setStorage({ trackedSites: sites, lastSync: Date.now() })
 
-	chrome.alarms.create('pollingTimer', {
-		delayInMinutes: POLLING_INTERVAL / 60,
-		periodInMinutes: POLLING_INTERVAL / 60
-	})
+	const existing = await chrome.alarms.get('pollingTimer')
+	if (!existing) {
+		chrome.alarms.create('pollingTimer', {
+			delayInMinutes: POLLING_INTERVAL / 60,
+			periodInMinutes: POLLING_INTERVAL / 60
+		})
+	}
 }
 
 const handleMessage = (
@@ -165,7 +200,7 @@ const handleMessage = (
 			const apiKey = request.payload as string
 			setStorage({ apiKey }).then(async () => {
 				await startPolling()
-				startBatchTimer()
+				await startBatchTimer()
 				sendResponse({ success: true })
 			})
 			return true
@@ -177,7 +212,7 @@ const handleMessage = (
 					apiKey: !!storage.apiKey,
 					sitesCount: storage.trackedSites.length,
 					lastSync: storage.lastSync,
-					bufferSize: errorBuffer.length
+					bufferSize: eventBuffer.length
 				})
 			})
 			return true
@@ -190,24 +225,24 @@ const handleMessage = (
 			return true
 		}
 
-		case 'ADD_ERROR': {
-			const error = request.payload as ErrorEntry
+		case 'ADD_EVENT': {
+			const event = request.payload as SpectraEvent
 			getStorage().then(async storage => {
 				if (!storage.apiKey) {
 					sendResponse({ success: false, reason: 'No API key' })
 					return
 				}
 
-				if (!isSiteTracked(error.url, storage.trackedSites)) {
+				if (!isSiteTracked(event.url, storage.trackedSites)) {
 					sendResponse({ success: false, reason: 'Site not tracked' })
 					return
 				}
 
-				errorBuffer.push(error)
+				eventBuffer.push(event)
 				await persistBuffer()
 
-				if (errorBuffer.length >= BATCH_MAX_SIZE) {
-					await processErrorBuffer()
+				if (eventBuffer.length >= BATCH_MAX_SIZE) {
+					await processEventBuffer()
 				}
 
 				sendResponse({ success: true })
@@ -229,7 +264,7 @@ const handleMessage = (
 
 chrome.alarms.onAlarm.addListener(alarm => {
 	if (alarm.name === 'batchTimer') {
-		processErrorBuffer()
+		processEventBuffer()
 	} else if (alarm.name === 'pollingTimer') {
 		getStorage().then(async storage => {
 			if (storage.apiKey) {
@@ -246,13 +281,13 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(async () => {
 	await restoreBuffer()
-	startBatchTimer()
+	await startBatchTimer()
 	const storage = await getStorage()
 	if (storage.apiKey) await startPolling()
 })
 
 chrome.runtime.onSuspend.addListener(() => {
-	processErrorBuffer()
+	processEventBuffer()
 })
 
 chrome.runtime.onSuspendCanceled.addListener(() => {
